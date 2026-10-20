@@ -1,44 +1,72 @@
-# Conexiones del probador de PLA
+# PLA Tester Wiring Guide
 
-Montaje para **Arduino UNO R3 de 5 V**, dos **SN74HC595N DIP-16** y una **N82S100N DIP-28 programada para C64**. Las tablas coinciden con los pines del [firmware](firmware/pla_tester/pla_tester.ino). Para cargarlo y ejecutar la prueba, consulta el [README](README.md).
+This guide covers the **5 V Arduino UNO R3**, two **SN74HC595N DIP-16** shift registers, and an **N82S100N DIP-28 programmed for the C64**. The tables match the [firmware](firmware/pla_tester/pla_tester.ino). See the [README](README.md) for building, uploading, and running tests.
 
-## Materiales y alimentación
+## Components and power
 
-- Arduino UNO R3, cable USB de datos y dos SN74HC595N DIP-16 (U1 y U2).
-- PLA, zócalo DIP-28 ancho, protoboard y cables cortos.
-- Tres condensadores de 100 nF, uno junto a cada integrado externo; uno de 10 µF en el riel de 5 V.
-- Una resistencia de 10 kΩ para `/OE` y 16 de 10 kΩ para las entradas de la PLA.
+- Arduino UNO R3, USB data cable, and two SN74HC595N DIP-16 chips (U1 and U2).
+- PLA, wide DIP-28 socket, breadboard, and short wires.
+- Three 100 nF capacitors, one next to each external chip, plus one 10 µF capacitor across the 5 V rail and GND. Observe polarity if using a polarized capacitor.
+- One 10 kΩ resistor for the shift registers' `/OE` line, and sixteen 10 kΩ resistors for the PLA inputs.
 
-Monta y modifica el circuito sin alimentación. La PLA debe estar **fuera del C64**. Alimenta todo desde el USB del UNO: pin **5V** al riel de 5 V y **GND** a masa común; no uses VIN, 3,3 V ni otra fuente simultánea. Comprueba 4,75–5,25 V bajo carga y la orientación de los chips antes de probar. Numeración vista desde arriba, muesca arriba, pin 1 arriba a la izquierda, en sentido antihorario.
+Disconnect power before assembling or changing the circuit. The PLA must be **removed from the C64**. Power the complete circuit through the UNO's USB connection: connect **5V** to the 5 V rail and **GND** to common ground. Do not use VIN, 3.3 V, or a second supply at the same time. Check for 4.75–5.25 V under load and verify chip orientation before testing.
 
-**Limitación de la lectura directa:** compartir alimentación de 5 V evita sobretensión, pero no garantiza compatibilidad de umbrales. El 82S100 garantiza un alto TTL desde 2,4 V y el ATmega328P requiere 0,6 × VCC (3 V a 5 V) en estos GPIO. El montaje directo puede funcionar con el chip concreto, pero puede producir falsos fallos. Para una lectura garantizada añade un **74HCT244 a 5 V** entre las ocho salidas de la PLA y el UNO: VCC pin 20, GND pin 10, habilitaciones pines 1 y 19 a GND y 100 nF de desacoplo. Usa los pares entrada→salida 2→18, 4→16, 6→14, 8→12, 11→9, 13→7, 15→5 y 17→3, en el orden de la tabla de salidas. Debe ser **HCT**, con umbrales TTL. Los dos 595 siguen controlando las entradas.
+DIP pin numbering is shown from above: with the notch at the top, pin 1 is at the upper left and numbers run counterclockwise.
 
-## Cableado de control
+## Direct-reading threshold limitation
 
-U1 es el registro más cercano al UNO; U2 recibe los datos de U1.
+Using a common 5 V supply avoids a voltage-level overvoltage, but does not guarantee compatible logic thresholds. The 82S100 guarantees a TTL high output from 2.4 V, while these ATmega328P GPIO inputs require 0.6 × VCC (3 V at a 5 V supply). Direct wiring may work with a particular chip, but can produce false failures.
 
-| Conexión | Destino |
+For guaranteed logic-level compatibility, add a **74HCT244 powered at 5 V** between the eight PLA outputs and the UNO. Use the **HCT** family, which has TTL input thresholds. The two 595 chips still drive the PLA inputs. No firmware changes are required.
+
+| HCT244 pin | Connection |
+| --- | --- |
+| 20, VCC | 5 V |
+| 10, GND | Common ground |
+| 1 and 19, output enables | GND |
+| 20 to 10 | Additional 100 nF decoupling capacitor |
+
+Insert each buffer channel as follows, replacing the corresponding direct PLA-to-UNO wire:
+
+| Output bit | PLA pin → HCT244 input pin | HCT244 output pin → UNO |
+| --- | --- | --- |
+| 0 | 18 → 2 | 18 → D2 |
+| 1 | 17 → 4 | 16 → D3 |
+| 2 | 16 → 6 | 14 → D4 |
+| 3 | 15 → 8 | 12 → D5 |
+| 4 | 13 → 11 | 9 → D6 |
+| 5 | 12 → 13 | 7 → D7 |
+| 6 | 11 → 15 | 5 → D8 |
+| 7 | 10 → 17 | 3 → D9 |
+
+## Control and power connections
+
+U1 is the register connected to the UNO's serial data output. U2 receives serial data from U1.
+
+| Source | Destination |
 | --- | --- |
 | UNO D11 | U1 SER, pin 14 |
 | U1 QH′, pin 9 | U2 SER, pin 14 |
-| UNO D13 | SRCLK, pin 11 de ambos 595 |
-| UNO D10 | RCLK/latch, pin 12 de ambos |
-| UNO D12 | `/OE`, pin 13 de ambos; resistencia de 10 kΩ de esta línea a 5 V |
-| 5 V | VCC pin 16 y `/SRCLR` pin 10 de ambos |
-| GND | Pin 8 de ambos |
-| U2 QH′, pin 9 | Sin conectar |
+| UNO D13 | SRCLK, pin 11 on both 595 chips |
+| UNO D10 | RCLK/latch, pin 12 on both 595 chips |
+| UNO D12 | `/OE`, pin 13 on both 595 chips; one 10 kΩ resistor from this shared line to 5 V |
+| 5 V | VCC pin 16 and `/SRCLR` pin 10 on both 595 chips |
+| GND | Pin 8 on both 595 chips |
+| U2 QH′, pin 9 | Leave unconnected |
 | PLA pin 28 | 5 V |
 | PLA pin 14 | GND |
 | PLA pin 1, FE | GND |
 | PLA pin 19, `/OE` | GND |
 
-El pull-up en `/OE` deshabilita las salidas de los 595 durante el reset. Añade una resistencia de **10 kΩ a GND en cada una de las 16 entradas de la PLA** para mantenerlas definidas en ese intervalo. El firmware carga cero antes de habilitar los registros. `/SRCLR` borra el registro de desplazamiento; por sí solo no inicializa el latch de salida.
+The `/OE` pull-up disables the 595 outputs during reset. Add a **10 kΩ resistor to GND at each of the sixteen PLA inputs** to keep those inputs defined during that interval. The firmware loads zero before enabling the registers. `/SRCLR` clears the shift register; it does not initialize the output latch by itself.
 
-## Entradas de la PLA
+Place a 100 nF capacitor between VCC and GND close to each chip: pins 16–8 on each 595 and pins 28–14 on the PLA.
 
-QA corresponde al bit menor de cada byte. El firmware envía primero el byte alto, después el bajo, ambos MSB primero, y finalmente pulsa el latch: U1 conserva bits 0–7 y U2 bits 8–15. Las salidas permanecen estables mientras se desplazan los datos.
+## PLA inputs
 
-| Bit | Señal | Pin PLA | Registro | Salida 595 (pin) |
+QA is the least significant bit of each byte. The firmware shifts out the high byte first, then the low byte, both MSB first, and finally updates the output latch. U1 holds bits 0–7 and U2 holds bits 8–15. Outputs remain stable while data is being shifted.
+
+| Bit | Signal | PLA pin | Register | 595 output (pin) |
 | --- | --- | --- | --- | --- |
 | 0 | A13 | 2 | U1 | QA (15) |
 | 1 | A14 | 3 | U1 | QB (1) |
@@ -57,11 +85,11 @@ QA corresponde al bit menor de cada byte. El firmware envía primero el byte alt
 | 14 | BA | 26 | U2 | QG (6) |
 | 15 | A12 | 27 | U2 | QH (7) |
 
-## Salidas de la PLA
+## PLA outputs
 
-Conecta directamente según esta tabla para el montaje básico, o intercala el HCT244 descrito arriba. El firmware usa `INPUT`, sin pull-ups internos. D0/D1 quedan libres para el puerto serie.
+Use this table for direct wiring, or insert the HCT244 as described above. The firmware uses `INPUT` without internal pull-ups. D0 and D1 are reserved for serial communication.
 
-| Bit | Señal | Pin PLA | UNO |
+| Bit | Signal | PLA pin | UNO |
 | --- | --- | --- | --- |
 | 0 | /CASRAM | 18 | D2 |
 | 1 | /BASIC | 17 | D3 |
@@ -72,21 +100,21 @@ Conecta directamente según esta tabla para el montaje básico, o intercala el H
 | 6 | /ROML | 11 | D8 |
 | 7 | /ROMH | 10 | D9 |
 
-Los vectores representan niveles eléctricos: `/` indica activo bajo, pero el software no invierte automáticamente las entradas.
+Vectors represent electrical pin levels. A `/` prefix means active low; the software does not automatically invert input signals.
 
-## Comprobación antes de conectar USB
+## Before connecting USB
 
-1. Confirma la orientación y numeración de los tres integrados externos.
-2. Comprueba que no haya cortocircuito entre 5 V y GND, y que todas las masas estén unidas.
-3. Verifica el enlace U1 pin 9 → U2 pin 14; no lo confundas con QH, pin 7.
-4. Comprueba que las 16 entradas tengan su resistencia a GND y que `/OE` de los 595 tenga su resistencia a 5 V.
-5. Revisa las ocho salidas: deben llegar a D2–D9, configurados como entradas.
-6. Conecta USB y verifica la tensión antes de enviar `t`.
+1. Verify the orientation and pin numbering of all external chips.
+2. Check for shorts between 5 V and GND, and confirm that all grounds are connected.
+3. Verify U1 pin 9 → U2 pin 14. Do not confuse serial output QH′ (pin 9) with parallel output QH (pin 7).
+4. Check the sixteen input resistors to GND and the shared 595 `/OE` pull-up to 5 V.
+5. Verify all eight PLA output paths to D2–D9, which the firmware configures as inputs.
+6. Connect USB and check the supply voltage before sending `t`.
 
-## Referencias
+## References
 
-- [Arduino UNO R3](https://docs.arduino.cc/hardware/uno-rev3/) y [hoja de datos ATmega328P](https://docs.arduino.cc/resources/datasheets/ATmega328P-datasheet.pdf).
-- [Texas Instruments SN74HC595](https://www.ti.com/lit/ds/symlink/sn74hc595.pdf): pines, cascada, latch y habilitación.
-- [Signetics 82S100](https://s3.amazonaws.com/com.c64os.resources/weblog/versa64cart/82S100-datasheet.pdf): pinout y niveles eléctricos.
-- [Ecuaciones y JEDEC del C64](https://www.zimmers.net/anonftp/pub/cbm/documents/chipdata/c64-pla.txt).
-- [SN74HCT244](https://www.ti.com/lit/ds/symlink/sn74hct244.pdf): buffer opcional para compatibilidad de umbrales.
+- [Arduino UNO R3](https://docs.arduino.cc/hardware/uno-rev3/) and [ATmega328P datasheet](https://docs.arduino.cc/resources/datasheets/ATmega328P-datasheet.pdf).
+- [Texas Instruments SN74HC595 datasheet](https://www.ti.com/lit/ds/symlink/sn74hc595.pdf): pinout, cascading, latch, and output enable.
+- [Signetics 82S100 datasheet](https://s3.amazonaws.com/com.c64os.resources/weblog/versa64cart/82S100-datasheet.pdf): pinout and electrical levels.
+- [C64 PLA equations and JEDEC data](https://www.zimmers.net/anonftp/pub/cbm/documents/chipdata/c64-pla.txt).
+- [SN74HCT244 datasheet](https://www.ti.com/lit/ds/symlink/sn74hct244.pdf): optional buffer for TTL threshold compatibility.

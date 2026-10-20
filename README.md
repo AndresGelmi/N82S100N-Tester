@@ -1,56 +1,75 @@
-# Probador de PLA del Commodore 64
+# Commodore 64 PLA Tester
 
-Probador estático en **C++ para Arduino UNO R3 (ATmega328P, 5 V)** y **dos SN74HC595N** en cascada. Comprueba una **N82S100N programada como PLA estándar del C64**, retirada del computador; no programa el chip.
+A static PLA tester written in **C++ for the Arduino UNO R3 (ATmega328P, 5 V)**, using **two cascaded SN74HC595N shift registers**. It checks an **N82S100N programmed as a standard C64 PLA**, removed from the computer. It does not program the chip.
 
-Antes de alimentar el montaje, sigue [CONEXIONES.md](CONEXIONES.md): incluye materiales, alimentación, resistencias, tablas pin a pin y el buffer HCT244 opcional para resolver la compatibilidad de umbrales TTL.
+Before powering the circuit, follow the [wiring guide](CONEXIONES.md). It covers components, power, resistors, every signal connection, and an optional HCT244 buffer for TTL input compatibility.
 
-## Estructura
+## Project structure
 
 ```text
 .
-├── README.md                         # Carga, ejecución y resultados
-├── CONEXIONES.md                     # Montaje completo
-├── .gitignore                        # Excluye resultados y compilaciones
+├── README.md                         # Build, upload, and operation
+├── CONEXIONES.md                     # Complete wiring guide (in English)
+├── .gitignore                        # Excludes logs and build artifacts
 └── firmware/
     └── pla_tester/
-        ├── pla_tester.ino            # Programa Arduino
-        └── pla_logic.h              # Modelo combinacional esperado
+        ├── pla_tester.ino            # Arduino sketch
+        └── pla_logic.h              # Expected combinational logic
 ```
 
-La carpeta del sketch y el archivo `.ino` comparten nombre para que Arduino IDE y Arduino CLI los reconozcan. `resultados/` se crea localmente al guardar informes y se excluye de Git.
+The sketch directory and `.ino` file share a name so Arduino IDE and Arduino CLI recognize them. Test logs are stored locally in `resultados/`, which Git ignores.
 
-## Requisitos
+## Requirements
 
-- Montaje descrito en [CONEXIONES.md](CONEXIONES.md) y cable USB de datos.
-- Arduino IDE con el paquete **Arduino AVR Boards**, o Arduino CLI con el core `arduino:avr`.
-- Un monitor serie; `picocom` es una opción para guardar registros desde Artix Linux.
+- The circuit described in the [wiring guide](CONEXIONES.md) and a USB data cable.
+- Arduino IDE with **Arduino AVR Boards**, or Arduino CLI with the `arduino:avr` core.
+- A serial terminal. On Artix Linux, `picocom` can also record test output.
 
-No requiere bibliotecas adicionales ni Python.
+No additional Arduino libraries or Python installation are required.
 
-## Compilar y cargar
+## Build and upload
 
-Con Arduino IDE, abre `firmware/pla_tester/pla_tester.ino`, selecciona **Arduino UNO** y el puerto correspondiente, y carga el programa. No requiere bibliotecas adicionales.
+### Arduino IDE
 
-También puedes usar Arduino CLI instalado según su [guía oficial](https://docs.arduino.cc/arduino-cli/installation/). Ejecuta los comandos desde la carpeta que contiene este README (`pla_tester`):
+Open `firmware/pla_tester/pla_tester.ino`, select **Arduino UNO** and its serial port, then upload the sketch.
+
+### Arduino CLI
+
+Install Arduino CLI using the [official instructions](https://docs.arduino.cc/arduino-cli/installation/). Run these commands from the repository root, where this README is located:
 
 ```bash
 arduino-cli core update-index
 arduino-cli core install arduino:avr
 arduino-cli board list
 arduino-cli compile --fqbn arduino:avr:uno firmware/pla_tester
-# Cambia el puerto según board list:
+# Replace this with the port shown by board list:
 export PLA_PORT=/dev/ttyACM0
 arduino-cli upload -p "$PLA_PORT" --fqbn arduino:avr:uno firmware/pla_tester
 arduino-cli monitor -p "$PLA_PORT" --config baudrate=115200
 ```
 
-En Artix, si falta acceso al puerto, consulta `stat -c '%G %A' "$PLA_PORT"` e `id`. Si el grupo del dispositivo es `uucp`, agrega tu usuario con `sudo usermod -aG uucp "$(id -un)"` y vuelve a iniciar sesión. Cierra cualquier otro monitor antes de cargar o abrir el puerto.
+Some boards appear as `/dev/ttyUSB0` instead. Close other serial terminals before uploading or opening the port.
 
-## Ejecutar y guardar el informe
+On Artix, if access is denied, check `stat -c '%G %A' "$PLA_PORT"` and `id`. If the device belongs to group `uucp`, add your user with `sudo usermod -aG uucp "$(id -un)"`, then log out and back in.
 
-Abre el monitor a **115200 baudios** y envía `t`. La prueba comienza únicamente al recibir esa letra; abrir el puerto puede reiniciar el UNO. Un final de línea opcional no afecta la orden. Envía `x` para interrumpir conservando un resumen parcial, o `t` al terminar para repetir. Ctrl+C cierra el monitor y no equivale a enviar `x`.
+## Run a test
 
-Para guardar el informe en Artix puedes usar un monitor con registro, como `picocom`:
+Open the serial terminal at **115200 baud** and send `t`. Opening the port may reset the UNO; wait for its ready message before sending the command. An optional newline is harmless.
+
+| Command | Action |
+| --- | --- |
+| `t` | Start a test, or run another test after completion. |
+| `x` | Stop a running test and print a partial summary. |
+
+Ctrl+C closes the terminal; it does not send `x` to the board. The firmware's serial messages remain in Spanish; the field names and statuses below match that output.
+
+The tester sweeps all 65,536 input combinations in ascending and descending order: **131,072 vectors**. It waits 50 µs after updating the inputs, reads all eight outputs, waits another 50 µs, and reads them again. Execution takes longer than the 13 seconds spent on these delays because shifting, sampling, and serial output add overhead. Wait for the final summary.
+
+Up to 100 failing vectors are printed in detail. All failures contribute to the counters, including those beyond the detail limit.
+
+## Record the output
+
+For example, on Artix Linux, close the Arduino serial monitor and use `picocom`:
 
 ```bash
 sudo pacman -S --needed picocom
@@ -58,26 +77,40 @@ mkdir -p resultados
 picocom --baud 115200 --logfile "resultados/pla-$(date +%Y%m%d-%H%M%S).log" "$PLA_PORT"
 ```
 
-Escribe `t` después de abrirlo. Para salir de picocom usa Ctrl+A y después Ctrl+X. El UNO **no guarda informes persistentes**: el registro queda en el PC. No ejecutes dos monitores simultáneos. Una desconexión o reset interrumpe la prueba; un registro sin resumen final no acredita aprobación.
+Send `t` after the terminal opens. To exit picocom, press Ctrl+A, then Ctrl+X.
 
-Se recorren las 65.536 combinaciones en orden ascendente y descendente: **131.072 vectores**, con dos lecturas por vector separadas por 50 µs y otros 50 µs tras actualizar entradas. La duración supera los 13 segundos mínimos de espera por el desplazamiento, las lecturas y la salida serie; espera el resumen final. Se detallan hasta 100 fallos; los contadores incluyen todos.
+The UNO **does not store persistent reports**; the log is saved on your computer. Do not open two serial terminals at once. A reset or disconnection interrupts the test. A log without a final summary is not a passing result.
 
-| Resultado | Interpretación |
+## Interpret the results
+
+| Status | Meaning |
 | --- | --- |
-| `PASS_ESTATICO` | Todos los vectores coincidieron en ambas lecturas. |
-| `FAIL` | Hubo discrepancias: revisa cableado, alimentación, contactos y umbrales antes de atribuirlas a la PLA. |
-| `INTERRUMPIDO` | Prueba parcial detenida con `x`. |
+| `PASS_ESTATICO` | Both readings matched the model for every vector. |
+| `FAIL` | At least one mismatch occurred. Check wiring, power, contacts, and logic thresholds before blaming the PLA. |
+| `INTERRUMPIDO` | The test was stopped with `x`; the results are partial. |
 
-`entrada`, `esperado`, `lectura1`, `lectura2` y `xor` se imprimen en hexadecimal. `xor=01` señala el bit 0, `/CASRAM`; `xor=20` señala `/IO`. Se cuentan vectores inestables cuando las dos lecturas difieren y errores por salida. Los conteos altas/bajas corresponden a la segunda lectura.
+The summary reports `Vectores` (vectors tested), `fallidos` (failing vectors), `inestables` (vectors whose two readings differed), and `tiempo_ms` (elapsed milliseconds). A completed test must report 131,072 vectors.
 
-Es una prueba estática con `/OE` de la PLA a GND: no mide retardos, glitches, alta impedancia, comportamiento térmico ni carga real del C64. Un aprobado no certifica funcionamiento dentro del computador.
+Failure details use hexadecimal:
 
-## Estado de validación
+| Field | Meaning |
+| --- | --- |
+| `pasada` | Sweep number, 1 or 2. |
+| `entrada` | Applied 16-bit input vector. |
+| `esperado` | Expected eight output levels. |
+| `lectura1`, `lectura2` | First and second output readings. |
+| `xor` | Bits that differed from the expected result in either reading. |
 
-El firmware fue compilado y enlazado para ATmega328P a 16 MHz con Arduino AVR core 1.8.8. El modelo C++ fue contrastado previamente con las 65.536 combinaciones del JEDEC publicado; ese verificador no forma parte de esta carpeta. Estas comprobaciones de software no validan el montaje físico.
+For example, `xor=01` identifies output bit 0, `/CASRAM`; `xor=20` identifies bit 5, `/IO`. Per-output counters report errors and low/high levels; the low/high counts use the second reading.
 
-## Subir a GitHub
+This is a static logic test with the PLA's `/OE` tied to GND. It does not measure propagation delays, glitches, high impedance, temperature effects, or actual C64 bus loading. A pass does not guarantee operation inside a computer. Direct PLA-to-UNO readings also have the threshold limitation explained in the [wiring guide](CONEXIONES.md).
 
-Usa **esta carpeta como raíz del repositorio**. Incluye `README.md`, `CONEXIONES.md`, `.gitignore` y `firmware/`. Los informes existentes se conservan localmente y quedan ignorados, junto con los archivos de compilación. No hace falta incluir los documentos de la carpeta superior.
+## Validation status
 
-Consulta las fuentes técnicas enlazadas al final de [CONEXIONES.md](CONEXIONES.md).
+The firmware has been compiled and linked for an ATmega328P at 16 MHz using Arduino AVR core 1.8.8. The C++ model was previously compared with all 65,536 combinations of the published JEDEC data; that verifier is not included in this repository. These software checks do not validate the physical circuit.
+
+## Repository contents
+
+This directory is the repository root. Version-controlled files are `README.md`, `CONEXIONES.md`, `.gitignore`, and `firmware/`. Test logs and build artifacts are ignored. Files from the parent directory are not required to build or run the tester.
+
+Technical sources are listed in the [wiring guide](CONEXIONES.md#references).

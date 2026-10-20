@@ -1,8 +1,8 @@
-# Registros locales de pruebas
+# Local test reports
 /resultados/
 *.log
 
-# Compilaciones Arduino
+# Arduino build artifacts
 /build/
 **/build/
 *.elf
@@ -12,7 +12,7 @@
 *.a
 *.map
 
-# Archivos locales
+# Local files
 .DS_Store
 Thumbs.db
 .vscode/
