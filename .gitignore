@@ -1,0 +1,20 @@
+# Registros locales de pruebas
+/resultados/
+*.log
+
+# Compilaciones Arduino
+/build/
+**/build/
+*.elf
+*.hex
+*.bin
+*.o
+*.a
+*.map
+
+# Archivos locales
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/
